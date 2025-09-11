@@ -1,23 +1,10 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Options Rolling Pro</title>
+    <meta charset="UTF-8">
+    <title>Test</title>
 </head>
 <body>
-    <h1>Options Rolling Pro - API Test</h1>
-    <button onclick="testAPI()">Test API</button>
-    <div id="result"></div>
-    
-    <script>
-        async function testAPI() {
-            try {
-                const response = await fetch('/api/polygon?symbol=SPY&endpoint=stock&apiKey=test');
-                const data = await response.json();
-                document.getElementById('result').innerHTML = JSON.stringify(data, null, 2);
-            } catch (error) {
-                document.getElementById('result').innerHTML = 'Error: ' + error.message;
-            }
-        }
-    </script>
+    <h1>Hello from Vercel!</h1>
 </body>
 </html>
