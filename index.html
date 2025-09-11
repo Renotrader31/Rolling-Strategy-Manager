@@ -2,9 +2,1151 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Test</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Options Rolling Analysis Pro - Live</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #0f1419 0%, #1a1f2e 100%);
+            color: #e0e6ed;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, rgba(30, 35, 48, 0.95), rgba(22, 27, 34, 0.95));
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea 0%, #f093fb 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .header p {
+            color: #8892b0;
+            font-size: 1.1em;
+        }
+        
+        .api-status {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .api-indicator {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.85em;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .api-connected {
+            background: rgba(0, 212, 170, 0.2);
+            border: 1px solid #00d4aa;
+            color: #00d4aa;
+        }
+        
+        .api-disconnected {
+            background: rgba(255, 71, 87, 0.2);
+            border: 1px solid #ff4757;
+            color: #ff4757;
+        }
+        
+        .nav-tabs {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 30px;
+            background: rgba(30, 35, 48, 0.6);
+            padding: 10px;
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .nav-tab {
+            padding: 12px 24px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: #8892b0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .nav-tab.active {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border-color: transparent;
+        }
+        
+        .nav-tab:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateY(-2px);
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, rgba(30, 35, 48, 0.9), rgba(22, 27, 34, 0.9));
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .stat-card.live-data::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #00d4aa, transparent);
+            animation: scan 2s linear infinite;
+        }
+        
+        @keyframes scan {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.2);
+        }
+        
+        .stat-label {
+            font-size: 0.85em;
+            color: #8892b0;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .stat-value {
+            font-size: 1.8em;
+            font-weight: 700;
+        }
+        
+        .positive {
+            color: #00d4aa;
+        }
+        
+        .negative {
+            color: #ff4757;
+        }
+        
+        .neutral {
+            color: #ffd93d;
+        }
+        
+        .section {
+            background: linear-gradient(135deg, rgba(30, 35, 48, 0.8), rgba(22, 27, 34, 0.8));
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+        
+        .section:hover {
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        .section-title {
+            font-size: 1.3em;
+            font-weight: 600;
+            margin-bottom: 25px;
+            color: #e0e6ed;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .section-icon {
+            font-size: 1.2em;
+        }
+        
+        .input-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+        }
+        
+        .input-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .input-group label {
+            font-size: 0.9em;
+            color: #8892b0;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        
+        .input-group input,
+        .input-group select {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: #e0e6ed;
+            font-size: 1em;
+            transition: all 0.3s ease;
+        }
+        
+        .input-group input:focus,
+        .input-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            background: rgba(0, 0, 0, 0.5);
+        }
+        
+        .input-group input::placeholder {
+            color: #4a5568;
+        }
+        
+        .input-with-fetch {
+            position: relative;
+        }
+        
+        .fetch-btn {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border: none;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.85em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .fetch-btn:hover {
+            transform: translateY(-50%) scale(1.05);
+        }
+        
+        .ai-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.85em;
+            font-weight: 600;
+            margin-left: auto;
+        }
+        
+        .api-config {
+            background: rgba(102, 126, 234, 0.1);
+            border: 1px solid rgba(102, 126, 234, 0.3);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+        
+        .api-config-title {
+            font-size: 1.1em;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #667eea;
+        }
+        
+        .decision-box {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2));
+            border: 2px solid rgba(102, 126, 234, 0.5);
+            border-radius: 16px;
+            padding: 30px;
+            margin-top: 30px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+        
+        @keyframes glow {
+            from { box-shadow: 0 0 20px rgba(102, 126, 234, 0.3); }
+            to { box-shadow: 0 0 30px rgba(102, 126, 234, 0.5); }
+        }
+        
+        .recommendation {
+            font-size: 2em;
+            font-weight: 700;
+            margin-bottom: 15px;
+            background: linear-gradient(135deg, #00d4aa, #00ff88);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .confidence {
+            font-size: 1.2em;
+            color: #8892b0;
+            margin-bottom: 10px;
+        }
+        
+        .ml-score {
+            display: inline-block;
+            background: rgba(0, 212, 170, 0.2);
+            border: 1px solid #00d4aa;
+            padding: 8px 16px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-weight: 600;
+            color: #00d4aa;
+        }
+        
+        .greeks-display {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+        }
+        
+        .greek-item {
+            text-align: center;
+        }
+        
+        .greek-label {
+            font-size: 0.85em;
+            color: #8892b0;
+            margin-bottom: 5px;
+        }
+        
+        .greek-value {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #667eea;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 30px;
+        }
+        
+        button {
+            padding: 14px 40px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .analyze-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .analyze-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 25px rgba(102, 126, 234, 0.5);
+        }
+        
+        .reset-btn {
+            background: rgba(255, 71, 87, 0.2);
+            color: #ff4757;
+            border: 1px solid #ff4757;
+        }
+        
+        .reset-btn:hover {
+            background: rgba(255, 71, 87, 0.3);
+            transform: translateY(-3px);
+        }
+        
+        .notes-area {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 16px;
+            color: #e0e6ed;
+            font-size: 1em;
+            font-family: inherit;
+            resize: vertical;
+            min-height: 120px;
+            transition: all 0.3s ease;
+        }
+        
+        .notes-area:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .live-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: #00d4aa;
+            font-size: 0.9em;
+            margin-left: 20px;
+        }
+        
+        .live-dot {
+            width: 8px;
+            height: 8px;
+            background: #00d4aa;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .loading-spinner {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(102, 126, 234, 0.3);
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .footer {
+            text-align: center;
+            color: #4a5568;
+            margin-top: 40px;
+            font-size: 0.9em;
+        }
+        
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .input-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .nav-tabs {
+                flex-wrap: wrap;
+            }
+        }
+    </style>
 </head>
 <body>
-    <h1>Hello from Vercel!</h1>
+    <div class="container">
+        <div class="api-status" id="apiStatus">
+            <div class="api-indicator api-disconnected" id="polygonStatus">
+                <span class="live-dot" style="background: #ff4757;"></span> Polygon
+            </div>
+            <div class="api-indicator api-disconnected" id="fmpStatus">
+                <span class="live-dot" style="background: #ff4757;"></span> FMP
+            </div>
+        </div>
+        
+        <div class="header">
+            <h1>
+                🚀 Options Rolling Analysis Pro
+                <span class="live-indicator">
+                    <span class="live-dot"></span>
+                    Live Market Data
+                </span>
+            </h1>
+            <p>Real-Time ML-Powered Options Roll Decision System with Live Greeks & IV</p>
+        </div>
+        
+        <!-- API Configuration Section -->
+        <div class="api-config" id="apiConfig">
+            <div class="api-config-title">🔑 API Configuration (Enter Your Keys)</div>
+            <div class="input-grid">
+                <div class="input-group">
+                    <label>Polygon API Key</label>
+                    <input type="password" id="polygonKey" placeholder="Enter your Polygon.io API key">
+                </div>
+                <div class="input-group">
+                    <label>FMP API Key</label>
+                    <input type="password" id="fmpKey" placeholder="Enter your FMP API key">
+                </div>
+                <div class="input-group">
+                    <label>Data Provider</label>
+                    <select id="dataProvider">
+                        <option value="polygon">Polygon (Best for Options)</option>
+                        <option value="fmp">Financial Modeling Prep</option>
+                        <option value="twelve">Twelve Data (Free)</option>
+                        <option value="alpha">Alpha Vantage (Free)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <div class="nav-tabs">
+            <div class="nav-tab active">
+                📊 Roll Analysis
+            </div>
+            <div class="nav-tab">
+                🤖 Live Greeks
+            </div>
+            <div class="nav-tab">
+                📈 IV Analysis
+            </div>
+            <div class="nav-tab">
+                🎯 Probability Model
+            </div>
+        </div>
+        
+        <!-- Quick Stats -->
+        <div class="stats-grid">
+            <div class="stat-card live-data">
+                <div class="stat-label">📊 Current P&L</div>
+                <div class="stat-value" id="currentPL">$0</div>
+            </div>
+            <div class="stat-card live-data">
+                <div class="stat-label">💹 Live Stock Price</div>
+                <div class="stat-value" id="liveStockPrice">-</div>
+            </div>
+            <div class="stat-card live-data">
+                <div class="stat-label">🎲 Probability ITM</div>
+                <div class="stat-value" id="probITM">0%</div>
+            </div>
+            <div class="stat-card live-data">
+                <div class="stat-label">📊 Live IV</div>
+                <div class="stat-value" id="liveIV">0%</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">🎯 ML Score</div>
+                <div class="stat-value neutral" id="mlScore">0%</div>
+            </div>
+        </div>
+        
+        <!-- Current Position Section -->
+        <div class="section">
+            <div class="section-title">
+                <span class="section-icon">📍</span>
+                Current Position
+                <span class="ai-badge">🔴 Live Data</span>
+                <div class="loading-spinner" id="loadingSpinner"></div>
+            </div>
+            <div class="input-grid">
+                <div class="input-group">
+                    <label>Stock Symbol</label>
+                    <div class="input-with-fetch">
+                        <input type="text" id="symbol" placeholder="e.g., SPY" value="SPY">
+                        <button class="fetch-btn" onclick="fetchLiveData()">Fetch Live</button>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Current Stock Price (Live)</label>
+                    <input type="number" id="stockPrice" step="0.01" placeholder="Auto-fetched" value="450">
+                </div>
+                <div class="input-group">
+                    <label>Option Type</label>
+                    <select id="optionType">
+                        <option value="put">Put</option>
+                        <option value="call">Call</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>Strike Price</label>
+                    <input type="number" id="strikePrice" step="0.01" placeholder="445.00" value="445">
+                </div>
+                <div class="input-group">
+                    <label>Expiration Date</label>
+                    <input type="date" id="expirationDate" value="2025-01-15">
+                </div>
+                <div class="input-group">
+                    <label>Original Premium</label>
+                    <input type="number" id="originalPremium" step="0.01" placeholder="3.00" value="3.00">
+                </div>
+                <div class="input-group">
+                    <label>Current Option Price (Live)</label>
+                    <input type="number" id="currentOptionPrice" step="0.01" placeholder="Auto-fetched" value="1.50">
+                </div>
+                <div class="input-group">
+                    <label>Position Size (Contracts)</label>
+                    <input type="number" id="positionSize" min="1" placeholder="1" value="1">
+                </div>
+            </div>
+            
+            <!-- Live Greeks Display -->
+            <div class="greeks-display" id="currentGreeks" style="display: none;">
+                <div class="greek-item">
+                    <div class="greek-label">Delta (Δ)</div>
+                    <div class="greek-value" id="currentDelta">-</div>
+                </div>
+                <div class="greek-item">
+                    <div class="greek-label">Gamma (Γ)</div>
+                    <div class="greek-value" id="currentGamma">-</div>
+                </div>
+                <div class="greek-item">
+                    <div class="greek-label">Theta (Θ)</div>
+                    <div class="greek-value" id="currentTheta">-</div>
+                </div>
+                <div class="greek-item">
+                    <div class="greek-label">Vega (ν)</div>
+                    <div class="greek-value" id="currentVega">-</div>
+                </div>
+                <div class="greek-item">
+                    <div class="greek-label">IV</div>
+                    <div class="greek-value" id="currentIV">-</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Roll Target Section -->
+        <div class="section">
+            <div class="section-title">
+                <span class="section-icon">🎯</span>
+                Roll Target Position
+            </div>
+            <div class="input-grid">
+                <div class="input-group">
+                    <label>New Strike Price</label>
+                    <input type="number" id="newStrikePrice" step="0.01" placeholder="440.00" value="440">
+                </div>
+                <div class="input-group">
+                    <label>New Expiration Date</label>
+                    <input type="date" id="newExpirationDate" value="2025-02-15">
+                </div>
+                <div class="input-group">
+                    <label>New Option Premium (Live)</label>
+                    <input type="number" id="newOptionPremium" step="0.01" placeholder="Auto-fetched" value="2.80">
+                </div>
+                <div class="input-group">
+                    <label>Commission Costs</label>
+                    <input type="number" id="commissionCosts" step="0.01" placeholder="2.00" value="2.00">
+                </div>
+            </div>
+            
+            <!-- Target Greeks Display -->
+            <div class="greeks-display" id="targetGreeks" style="display: none;">
+                <div class="greek-item">
+                    <div class="greek-label">Delta (Δ)</div>
+                    <div class="greek-value" id="targetDelta">-</div>
+                </div>
+                <div class="greek-item">
+                    <div class="greek-label">Gamma (Γ)</div>
+                    <div class="greek-value" id="targetGamma">-</div>
+                </div>
+                <div class="greek-item">
+                    <div class="greek-label">Theta (Θ)</div>
+                    <div class="greek-value" id="targetTheta">-</div>
+                </div>
+                <div class="greek-item">
+                    <div class="greek-label">Vega (ν)</div>
+                    <div class="greek-value" id="targetVega">-</div>
+                </div>
+                <div class="greek-item">
+                    <div class="greek-label">IV</div>
+                    <div class="greek-value" id="targetIV">-</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Analysis Results Section -->
+        <div class="section">
+            <div class="section-title">
+                <span class="section-icon">💡</span>
+                Roll Analysis Results
+            </div>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">💸 Cost to Close</div>
+                    <div class="stat-value" id="costToClose">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">💰 New Credit</div>
+                    <div class="stat-value" id="creditForNew">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">📊 Total Premium</div>
+                    <div class="stat-value" id="totalPremium">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">🎯 New Break-Even</div>
+                    <div class="stat-value" id="newBreakEven">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">📈 Max Profit</div>
+                    <div class="stat-value" id="newMaxProfit">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">⏱️ Time Gained</div>
+                    <div class="stat-value" id="timeValueGained">-</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Decision Box -->
+        <div class="decision-box" id="decisionBox" style="display: none;">
+            <div class="recommendation" id="recommendation">-</div>
+            <div class="confidence" id="confidence">-</div>
+            <div class="ml-score" id="mlScoreDetail">ML Confidence: 0%</div>
+            <div style="margin-top: 20px; color: #8892b0;" id="alternativeAction">-</div>
+        </div>
+        
+        <!-- Notes Section -->
+        <div class="section">
+            <div class="section-title">
+                <span class="section-icon">📝</span>
+                Trading Notes
+            </div>
+            <textarea class="notes-area" id="notes" placeholder="Enter your analysis notes, market observations, or strategy considerations here..."></textarea>
+        </div>
+        
+        <!-- Action Buttons -->
+        <div class="button-group">
+            <button class="analyze-btn" onclick="calculateRoll()">🚀 Analyze Roll</button>
+            <button class="reset-btn" onclick="resetForm()">🔄 Reset</button>
+        </div>
+        
+        <div class="footer">
+            Options Rolling Analysis Pro v3.0 | Live Market Data Integration | Powered by Vercel
+        </div>
+    </div>
+    
+    <script>
+        // Store API keys
+        let apiKeys = {
+            polygon: '',
+            fmp: '',
+            twelve: '',
+            alpha: ''
+        };
+        
+        // Black-Scholes Model for Greeks calculation
+        function normalCDF(x) {
+            const t = 1 / (1 + 0.2316419 * Math.abs(x));
+            const d = 0.3989423 * Math.exp(-x * x / 2);
+            const probability = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+            return x > 0 ? 1 - probability : probability;
+        }
+        
+        function calculateGreeks(S, K, T, r, sigma, optionType) {
+            // S = Stock price, K = Strike price, T = Time to expiration (years)
+            // r = Risk-free rate, sigma = Volatility (IV)
+            
+            const d1 = (Math.log(S / K) + (r + 0.5 * sigma * sigma) * T) / (sigma * Math.sqrt(T));
+            const d2 = d1 - sigma * Math.sqrt(T);
+            
+            let delta, gamma, theta, vega;
+            
+            gamma = Math.exp(-d1 * d1 / 2) / (S * sigma * Math.sqrt(2 * Math.PI * T));
+            vega = S * Math.exp(-d1 * d1 / 2) * Math.sqrt(T) / Math.sqrt(2 * Math.PI) / 100;
+            
+            if (optionType === 'call') {
+                delta = normalCDF(d1);
+                theta = -(S * Math.exp(-d1 * d1 / 2) * sigma / (2 * Math.sqrt(2 * Math.PI * T)) +
+                        r * K * Math.exp(-r * T) * normalCDF(d2)) / 365;
+            } else {
+                delta = normalCDF(d1) - 1;
+                theta = -(S * Math.exp(-d1 * d1 / 2) * sigma / (2 * Math.sqrt(2 * Math.PI * T)) -
+                        r * K * Math.exp(-r * T) * normalCDF(-d2)) / 365;
+            }
+            
+            return { delta, gamma, theta, vega };
+        }
+        
+        // Probability calculations
+        function calculateProbabilityITM(S, K, T, sigma, optionType) {
+            const drift = 0; // Assuming no drift for simplicity
+            const d2 = (Math.log(S / K) + drift * T) / (sigma * Math.sqrt(T));
+            
+            if (optionType === 'call') {
+                return normalCDF(d2) * 100;
+            } else {
+                return normalCDF(-d2) * 100;
+            }
+        }
+        
+        // Fetch live data function - UPDATED FOR VERCEL
+        async function fetchLiveData() {
+            const symbol = document.getElementById('symbol').value;
+            const provider = document.getElementById('dataProvider').value;
+            const loadingSpinner = document.getElementById('loadingSpinner');
+            
+            loadingSpinner.style.display = 'inline-block';
+            
+            try {
+                let stockPrice = 0;
+                let optionData = null;
+                
+                // UPDATED: Using Vercel API routes instead of direct API calls
+                if (provider === 'polygon' && apiKeys.polygon) {
+                    // Fetch stock price through our Vercel API route
+                    const response = await fetch(`/api/polygon?symbol=${symbol}&endpoint=stock&apiKey=${apiKeys.polygon}`);
+                    const data = await response.json();
+                    
+                    if (data.results && data.results[0]) {
+                        stockPrice = data.results[0].c; // Closing price
+                        document.getElementById('stockPrice').value = stockPrice.toFixed(2);
+                        document.getElementById('liveStockPrice').textContent = `$${stockPrice.toFixed(2)}`;
+                        
+                        // Update API status
+                        document.getElementById('polygonStatus').className = 'api-indicator api-connected';
+                        document.getElementById('polygonStatus').innerHTML = '<span class="live-dot"></span> Polygon ✓';
+                    }
+                    
+                    // Try to fetch options data
+                    const strike = document.getElementById('strikePrice').value;
+                    const expiry = document.getElementById('expirationDate').value;
+                    const optionType = document.getElementById('optionType').value === 'call' ? 'C' : 'P';
+                    
+                    const optionResponse = await fetch(
+                        `/api/polygon?symbol=${symbol}&endpoint=option&apiKey=${apiKeys.polygon}&strike=${strike}&expiry=${expiry}&optionType=${optionType}`
+                    );
+                    const optionResult = await optionResponse.json();
+                    
+                    if (optionResult.results) {
+                        document.getElementById('currentOptionPrice').value = optionResult.results.p.toFixed(2);
+                    }
+                    
+                } else if (provider === 'fmp' && apiKeys.fmp) {
+                    // FMP through our Vercel API route
+                    const response = await fetch(`/api/fmp?symbol=${symbol}&endpoint=quote&apiKey=${apiKeys.fmp}`);
+                    const data = await response.json();
+                    
+                    if (data[0]) {
+                        stockPrice = data[0].price;
+                        document.getElementById('stockPrice').value = stockPrice.toFixed(2);
+                        document.getElementById('liveStockPrice').textContent = `$${stockPrice.toFixed(2)}`;
+                        
+                        // Update API status
+                        document.getElementById('fmpStatus').className = 'api-indicator api-connected';
+                        document.getElementById('fmpStatus').innerHTML = '<span class="live-dot"></span> FMP ✓';
+                    }
+                    
+                } else if (provider === 'twelve' && apiKeys.twelve) {
+                    // Twelve Data through our Vercel API route
+                    const response = await fetch(`/api/twelve?symbol=${symbol}&endpoint=quote&apiKey=${apiKeys.twelve}`);
+                    const data = await response.json();
+                    
+                    if (data.price) {
+                        stockPrice = parseFloat(data.price);
+                        document.getElementById('stockPrice').value = stockPrice.toFixed(2);
+                        document.getElementById('liveStockPrice').textContent = `$${stockPrice.toFixed(2)}`;
+                    }
+                    
+                } else if (provider === 'alpha' && apiKeys.alpha) {
+                    // Alpha Vantage through our Vercel API route
+                    const response = await fetch(`/api/alpha?symbol=${symbol}&endpoint=quote&apiKey=${apiKeys.alpha}`);
+                    const data = await response.json();
+                    
+                    if (data['Global Quote']) {
+                        stockPrice = parseFloat(data['Global Quote']['05. price']);
+                        document.getElementById('stockPrice').value = stockPrice.toFixed(2);
+                        document.getElementById('liveStockPrice').textContent = `$${stockPrice.toFixed(2)}`;
+                    }
+                } else {
+                    alert('Please enter your API keys in the configuration section.');
+                }
+                
+                // Calculate implied volatility and Greeks
+                if (stockPrice > 0) {
+                    calculateLiveGreeks();
+                }
+                
+            } catch (error) {
+                console.error('Error fetching live data:', error);
+                alert('Error fetching live data. Please check your API keys and try again.');
+            } finally {
+                loadingSpinner.style.display = 'none';
+            }
+        }
+        
+        function calculateLiveGreeks() {
+            const S = parseFloat(document.getElementById('stockPrice').value);
+            const K = parseFloat(document.getElementById('strikePrice').value);
+            const expirationDate = document.getElementById('expirationDate').value;
+            const optionType = document.getElementById('optionType').value;
+            
+            // Calculate time to expiration in years
+            const expDate = new Date(expirationDate);
+            const today = new Date();
+            const T = Math.max((expDate - today) / (365 * 24 * 60 * 60 * 1000), 0.001);
+            
+            // Use a default IV if not available from API (you can enhance this)
+            const sigma = 0.25; // 25% IV as default
+            const r = 0.05; // 5% risk-free rate
+            
+            const greeks = calculateGreeks(S, K, T, r, sigma, optionType);
+            const probITM = calculateProbabilityITM(S, K, T, sigma, optionType);
+            
+            // Update current position Greeks
+            document.getElementById('currentDelta').textContent = greeks.delta.toFixed(3);
+            document.getElementById('currentGamma').textContent = greeks.gamma.toFixed(4);
+            document.getElementById('currentTheta').textContent = greeks.theta.toFixed(3);
+            document.getElementById('currentVega').textContent = greeks.vega.toFixed(3);
+            document.getElementById('currentIV').textContent = (sigma * 100).toFixed(1) + '%';
+            document.getElementById('currentGreeks').style.display = 'grid';
+            
+            // Update probability
+            document.getElementById('probITM').textContent = probITM.toFixed(1) + '%';
+            document.getElementById('probITM').className = probITM > 50 ? 'stat-value negative' : 'stat-value positive';
+            
+            // Update live IV
+            document.getElementById('liveIV').textContent = (sigma * 100).toFixed(1) + '%';
+            
+            // Calculate for new position if values exist
+            const newK = parseFloat(document.getElementById('newStrikePrice').value);
+            const newExpDate = document.getElementById('newExpirationDate').value;
+            if (newK && newExpDate) {
+                const newExpDateObj = new Date(newExpDate);
+                const newT = Math.max((newExpDateObj - today) / (365 * 24 * 60 * 60 * 1000), 0.001);
+                const newGreeks = calculateGreeks(S, newK, newT, r, sigma, optionType);
+                
+                document.getElementById('targetDelta').textContent = newGreeks.delta.toFixed(3);
+                document.getElementById('targetGamma').textContent = newGreeks.gamma.toFixed(4);
+                document.getElementById('targetTheta').textContent = newGreeks.theta.toFixed(3);
+                document.getElementById('targetVega').textContent = newGreeks.vega.toFixed(3);
+                document.getElementById('targetIV').textContent = (sigma * 100).toFixed(1) + '%';
+                document.getElementById('targetGreeks').style.display = 'grid';
+            }
+        }
+        
+        function calculateDaysToExpiration(dateString) {
+            const expDate = new Date(dateString);
+            const today = new Date();
+            const diffTime = expDate - today;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            return diffDays;
+        }
+        
+        function calculateRoll() {
+            // Get input values
+            const symbol = document.getElementById('symbol').value;
+            const stockPrice = parseFloat(document.getElementById('stockPrice').value);
+            const optionType = document.getElementById('optionType').value;
+            const strikePrice = parseFloat(document.getElementById('strikePrice').value);
+            const expirationDate = document.getElementById('expirationDate').value;
+            const originalPremium = parseFloat(document.getElementById('originalPremium').value);
+            const currentOptionPrice = parseFloat(document.getElementById('currentOptionPrice').value);
+            const positionSize = parseInt(document.getElementById('positionSize').value);
+            
+            const newStrikePrice = parseFloat(document.getElementById('newStrikePrice').value);
+            const newExpirationDate = document.getElementById('newExpirationDate').value;
+            const newOptionPremium = parseFloat(document.getElementById('newOptionPremium').value);
+            const commissionCosts = parseFloat(document.getElementById('commissionCosts').value);
+            
+            // Calculate days to expiration
+            const daysToExp = calculateDaysToExpiration(expirationDate);
+            const newDaysToExp = calculateDaysToExpiration(newExpirationDate);
+            const timeGained = newDaysToExp - daysToExp;
+            
+            // Calculate current P&L
+            const currentPL = (originalPremium - currentOptionPrice) * positionSize * 100;
+            
+            // Calculate roll costs
+            const costToClose = currentOptionPrice * positionSize * 100;
+            const creditForNew = newOptionPremium * positionSize * 100;
+            const netRollCost = creditForNew - costToClose;
+            const totalPremium = (originalPremium * positionSize * 100) + netRollCost;
+            const netAfterCommissions = netRollCost - commissionCosts;
+            
+            // Calculate break-even prices
+            let currentBreakEven, newBreakEven;
+            if (optionType === 'put') {
+                currentBreakEven = strikePrice - originalPremium;
+                newBreakEven = newStrikePrice - (totalPremium / (positionSize * 100));
+            } else {
+                currentBreakEven = strikePrice + originalPremium;
+                newBreakEven = newStrikePrice + (totalPremium / (positionSize * 100));
+            }
+            
+            const distanceFromPrice = Math.abs(stockPrice - newBreakEven);
+            
+            // Calculate max profit/loss
+            let currentMaxProfit, newMaxProfit, currentMaxLoss, newMaxLoss;
+            if (optionType === 'put') {
+                currentMaxProfit = originalPremium * positionSize * 100;
+                newMaxProfit = totalPremium;
+                currentMaxLoss = (strikePrice - originalPremium) * positionSize * 100;
+                newMaxLoss = (newStrikePrice - (totalPremium / (positionSize * 100))) * positionSize * 100;
+            } else {
+                currentMaxProfit = originalPremium * positionSize * 100;
+                newMaxProfit = totalPremium;
+                currentMaxLoss = originalPremium * positionSize * 100;
+                newMaxLoss = totalPremium;
+            }
+            
+            // Calculate enhanced ML Score with Greeks
+            let mlScore = 50;
+            
+            // Factor in roll economics
+            if (netAfterCommissions > 0) mlScore += 20;
+            if (netAfterCommissions > 100) mlScore += 10;
+            
+            // Factor in time value
+            if (timeGained > 20) mlScore += 15;
+            if (timeGained > 30) mlScore += 5;
+            
+            // Factor in Greeks comparison (if available)
+            const currentTheta = parseFloat(document.getElementById('currentTheta').textContent || '0');
+            const targetTheta = parseFloat(document.getElementById('targetTheta').textContent || '0');
+            if (Math.abs(targetTheta) < Math.abs(currentTheta)) mlScore += 10;
+            
+            // Factor in probability
+            const probITM = parseFloat(document.getElementById('probITM').textContent || '50');
+            if (probITM < 30) mlScore += 15;
+            if (probITM < 20) mlScore += 10;
+            
+            mlScore = Math.min(95, Math.max(5, mlScore));
+            
+            // Update quick stats
+            document.getElementById('currentPL').textContent = currentPL >= 0 ? `+$${currentPL.toFixed(2)}` : `-$${Math.abs(currentPL).toFixed(2)}`;
+            document.getElementById('currentPL').className = currentPL >= 0 ? 'stat-value positive' : 'stat-value negative';
+            
+            document.getElementById('mlScore').textContent = `${mlScore}%`;
+            document.getElementById('mlScore').className = mlScore > 70 ? 'stat-value positive' : mlScore > 50 ? 'stat-value neutral' : 'stat-value negative';
+            
+            // Update detailed values
+            document.getElementById('costToClose').textContent = `$${costToClose.toFixed(2)}`;
+            document.getElementById('costToClose').className = 'stat-value negative';
+            
+            document.getElementById('creditForNew').textContent = `$${creditForNew.toFixed(2)}`;
+            document.getElementById('creditForNew').className = 'stat-value positive';
+            
+            document.getElementById('totalPremium').textContent = `$${totalPremium.toFixed(2)}`;
+            document.getElementById('totalPremium').className = 'stat-value positive';
+            
+            document.getElementById('newBreakEven').textContent = `$${newBreakEven.toFixed(2)}`;
+            document.getElementById('newBreakEven').className = 'stat-value neutral';
+            
+            document.getElementById('newMaxProfit').textContent = `$${newMaxProfit.toFixed(2)}`;
+            document.getElementById('newMaxProfit').className = 'stat-value positive';
+            
+            document.getElementById('timeValueGained').textContent = `${timeGained} days`;
+            document.getElementById('timeValueGained').className = timeGained > 0 ? 'stat-value positive' : 'stat-value negative';
+            
+            // Enhanced decision logic with probability
+            let recommendation, confidence, alternative;
+            
+            if (mlScore > 70) {
+                recommendation = "✅ STRONG ROLL - HIGH PROBABILITY";
+                confidence = `ML Confidence: ${mlScore}% | Prob Success: ${(100 - probITM).toFixed(1)}%`;
+                alternative = "Execute roll with confidence - all factors favorable";
+            } else if (mlScore > 50) {
+                recommendation = "📊 MODERATE ROLL - PROCEED WITH CAUTION";
+                confidence = `ML Confidence: ${mlScore}% | Prob Success: ${(100 - probITM).toFixed(1)}%`;
+                alternative = "Consider market conditions and personal risk tolerance";
+            } else {
+                recommendation = "⚠️ WEAK ROLL - RECONSIDER";
+                confidence = `ML Confidence: ${mlScore}% | Prob Success: ${(100 - probITM).toFixed(1)}%`;
+                alternative = "Consider closing position or waiting for better conditions";
+            }
+            
+            document.getElementById('recommendation').textContent = recommendation;
+            document.getElementById('confidence').textContent = confidence;
+            document.getElementById('mlScoreDetail').textContent = `ML Score: ${mlScore}% | Greeks Optimized`;
+            document.getElementById('alternativeAction').textContent = alternative;
+            document.getElementById('decisionBox').style.display = 'block';
+            
+            // Calculate live Greeks if not already done
+            calculateLiveGreeks();
+        }
+        
+        function resetForm() {
+            document.querySelectorAll('input').forEach(input => {
+                if (input.type !== 'button' && input.type !== 'submit' && input.type !== 'password') {
+                    input.value = '';
+                }
+            });
+            document.getElementById('notes').value = '';
+            document.querySelectorAll('.stat-value').forEach(output => {
+                output.textContent = '-';
+                output.className = 'stat-value';
+            });
+            document.getElementById('decisionBox').style.display = 'none';
+            document.getElementById('currentGreeks').style.display = 'none';
+            document.getElementById('targetGreeks').style.display = 'none';
+        }
+        
+        // Save API keys when entered
+        document.getElementById('polygonKey').addEventListener('change', function() {
+            apiKeys.polygon = this.value;
+        });
+        
+        document.getElementById('fmpKey').addEventListener('change', function() {
+            apiKeys.fmp = this.value;
+        });
+        
+        // Add listeners for Twelve and Alpha keys if you add input fields for them
+        
+        // Auto-calculate on input change
+        document.querySelectorAll('input').forEach(input => {
+            if (input.type !== 'password') {
+                input.addEventListener('change', () => {
+                    const allFilled = Array.from(document.querySelectorAll('input[type="number"], input[type="date"]'))
+                        .filter(inp => inp.value !== '').length >= 8;
+                    if (allFilled) {
+                        calculateRoll();
+                    }
+                });
+            }
+        });
+        
+        // Initial calculation if example values are present
+        window.addEventListener('load', () => {
+            if (document.getElementById('symbol').value) {
+                calculateRoll();
+            }
+        });
+    </script>
 </body>
 </html>
