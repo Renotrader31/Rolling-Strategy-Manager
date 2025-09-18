@@ -1,0 +1,9 @@
+web_server.py
+supervisord.conf
+supervisord.log
+supervisor.sock
+supervisord.pid
+webserver.log
+webserver_error.log
+node_modules
+.git
