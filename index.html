@@ -624,6 +624,30 @@
                 </div>
             </div>
             
+            <!-- Risk Management Parameters -->
+            <div class="section-title" style="margin-top: 20px;">
+                <span class="section-icon">⚠️</span>
+                Risk Management Parameters
+            </div>
+            <div class="input-grid">
+                <div class="input-group">
+                    <label>Portfolio Value ($)</label>
+                    <input type="number" id="portfolioValue" step="1000" placeholder="50000" value="50000">
+                </div>
+                <div class="input-group">
+                    <label>Max Risk Per Trade (%)</label>
+                    <input type="number" id="maxRiskPercent" step="0.1" placeholder="2.0" value="2.0" max="10">
+                </div>
+                <div class="input-group">
+                    <label>Profit Target (%)</label>
+                    <input type="number" id="profitTarget" step="5" placeholder="25" value="25">
+                </div>
+                <div class="input-group">
+                    <label>Stop Loss (%)</label>
+                    <input type="number" id="stopLoss" step="5" placeholder="50" value="50">
+                </div>
+            </div>
+            
             <!-- Live Greeks Display -->
             <div class="greeks-display" id="currentGreeks" style="display: none;">
                 <div class="greek-item">
@@ -699,6 +723,52 @@
             </div>
         </div>
         
+        <!-- Decision Matrix Section -->
+        <div class="section">
+            <div class="section-title">
+                <span class="section-icon">🎯</span>
+                Position Decision Matrix
+            </div>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">🔄 Roll Score</div>
+                    <div class="stat-value" id="rollScore">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">🤚 Hold Score</div>
+                    <div class="stat-value" id="holdScore">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">❌ Close Score</div>
+                    <div class="stat-value" id="closeScore">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">🏆 Best Action</div>
+                    <div class="stat-value" id="bestAction">-</div>
+                </div>
+            </div>
+            
+            <!-- Risk Metrics -->
+            <div class="stats-grid" style="margin-top: 20px;">
+                <div class="stat-card">
+                    <div class="stat-label">⚠️ Position Risk</div>
+                    <div class="stat-value" id="positionRisk">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">📊 Portfolio Impact</div>
+                    <div class="stat-value" id="portfolioImpact">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">🎯 P/L vs Target</div>
+                    <div class="stat-value" id="plVsTarget">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">🛑 Risk Level</div>
+                    <div class="stat-value" id="riskLevel">-</div>
+                </div>
+            </div>
+        </div>
+
         <!-- Analysis Results Section -->
         <div class="section">
             <div class="section-title">
@@ -782,25 +852,103 @@
             // S = Stock price, K = Strike price, T = Time to expiration (years)
             // r = Risk-free rate, sigma = Volatility (IV)
             
+            // Handle edge cases
+            if (T <= 0.001) T = 0.001;
+            if (sigma <= 0.001) sigma = 0.001;
+            
             const d1 = (Math.log(S / K) + (r + 0.5 * sigma * sigma) * T) / (sigma * Math.sqrt(T));
             const d2 = d1 - sigma * Math.sqrt(T);
             
-            let delta, gamma, theta, vega;
+            let delta, gamma, theta, vega, rho;
             
-            gamma = Math.exp(-d1 * d1 / 2) / (S * sigma * Math.sqrt(2 * Math.PI * T));
-            vega = S * Math.exp(-d1 * d1 / 2) * Math.sqrt(T) / Math.sqrt(2 * Math.PI) / 100;
+            // More accurate Greeks calculations
+            const nd1 = normalCDF(d1);
+            const nd2 = normalCDF(d2);
+            const npd1 = Math.exp(-d1 * d1 / 2) / Math.sqrt(2 * Math.PI);
+            
+            gamma = npd1 / (S * sigma * Math.sqrt(T));
+            vega = S * npd1 * Math.sqrt(T) / 100; // Divide by 100 for 1% change
             
             if (optionType === 'call') {
-                delta = normalCDF(d1);
-                theta = -(S * Math.exp(-d1 * d1 / 2) * sigma / (2 * Math.sqrt(2 * Math.PI * T)) +
-                        r * K * Math.exp(-r * T) * normalCDF(d2)) / 365;
+                delta = nd1;
+                theta = -(S * npd1 * sigma / (2 * Math.sqrt(T)) + 
+                         r * K * Math.exp(-r * T) * nd2) / 365;
+                rho = K * T * Math.exp(-r * T) * nd2 / 100;
             } else {
-                delta = normalCDF(d1) - 1;
-                theta = -(S * Math.exp(-d1 * d1 / 2) * sigma / (2 * Math.sqrt(2 * Math.PI * T)) -
-                        r * K * Math.exp(-r * T) * normalCDF(-d2)) / 365;
+                delta = nd1 - 1;
+                theta = -(S * npd1 * sigma / (2 * Math.sqrt(T)) - 
+                         r * K * Math.exp(-r * T) * normalCDF(-d2)) / 365;
+                rho = -K * T * Math.exp(-r * T) * normalCDF(-d2) / 100;
             }
             
-            return { delta, gamma, theta, vega };
+            return { delta, gamma, theta, vega, rho };
+        }
+        
+        function estimateImpliedVolatility(S, K, T, r, marketPrice, optionType) {
+            // Simple binary search for IV
+            let sigma = 0.25; // Initial guess
+            let high = 5.0;
+            let low = 0.001;
+            let iterations = 0;
+            const maxIterations = 50;
+            const tolerance = 0.0001;
+            
+            while (iterations < maxIterations && (high - low) > tolerance) {
+                const theoreticalPrice = calculateBlackScholesPrice(S, K, T, r, sigma, optionType);
+                
+                if (Math.abs(theoreticalPrice - marketPrice) < tolerance) {
+                    break;
+                }
+                
+                if (theoreticalPrice > marketPrice) {
+                    high = sigma;
+                } else {
+                    low = sigma;
+                }
+                
+                sigma = (high + low) / 2;
+                iterations++;
+            }
+            
+            return sigma;
+        }
+        
+        function calculateBlackScholesPrice(S, K, T, r, sigma, optionType) {
+            const d1 = (Math.log(S / K) + (r + 0.5 * sigma * sigma) * T) / (sigma * Math.sqrt(T));
+            const d2 = d1 - sigma * Math.sqrt(T);
+            
+            if (optionType === 'call') {
+                return S * normalCDF(d1) - K * Math.exp(-r * T) * normalCDF(d2);
+            } else {
+                return K * Math.exp(-r * T) * normalCDF(-d2) - S * normalCDF(-d1);
+            }
+        }
+        
+        function applyVolatilitySkew(sigma, S, K, T, optionType) {
+            // Simple volatility skew adjustment
+            const moneyness = K / S;
+            let skewAdjustment = 0;
+            
+            if (optionType === 'put') {
+                // Put skew - OTM puts have higher IV
+                if (moneyness < 0.95) {
+                    skewAdjustment = (0.95 - moneyness) * 0.3; // Increase IV for deep OTM puts
+                } else if (moneyness > 1.05) {
+                    skewAdjustment = (moneyness - 1.05) * -0.1; // Decrease IV for deep ITM puts
+                }
+            } else {
+                // Call skew - OTM calls typically have lower IV
+                if (moneyness > 1.05) {
+                    skewAdjustment = (moneyness - 1.05) * 0.2; // Increase IV for deep OTM calls
+                } else if (moneyness < 0.95) {
+                    skewAdjustment = (0.95 - moneyness) * -0.1; // Decrease IV for deep ITM calls
+                }
+            }
+            
+            // Apply term structure adjustment (shorter term = higher IV)
+            const termAdjustment = T < 0.08 ? (0.08 - T) * 0.5 : 0; // 30 days = 0.08 years
+            
+            return Math.max(0.05, sigma + skewAdjustment + termAdjustment);
         }
         
         // Probability calculations
@@ -915,20 +1063,31 @@
             const K = parseFloat(document.getElementById('strikePrice').value);
             const expirationDate = document.getElementById('expirationDate').value;
             const optionType = document.getElementById('optionType').value;
+            const currentOptionPrice = parseFloat(document.getElementById('currentOptionPrice').value) || 0;
             
             // Calculate time to expiration in years
             const expDate = new Date(expirationDate);
             const today = new Date();
             const T = Math.max((expDate - today) / (365 * 24 * 60 * 60 * 1000), 0.001);
             
-            // Use a default IV if not available from API (you can enhance this)
-            const sigma = 0.25; // 25% IV as default
             const r = 0.05; // 5% risk-free rate
+            
+            // Try to calculate implied volatility from market price if available
+            let sigma = 0.25; // Default 25% IV
+            if (currentOptionPrice > 0 && S > 0 && K > 0) {
+                const impliedVol = estimateImpliedVolatility(S, K, T, r, currentOptionPrice, optionType);
+                if (impliedVol > 0.05 && impliedVol < 5.0) {
+                    sigma = impliedVol;
+                }
+            }
+            
+            // Apply volatility skew
+            sigma = applyVolatilitySkew(sigma, S, K, T, optionType);
             
             const greeks = calculateGreeks(S, K, T, r, sigma, optionType);
             const probITM = calculateProbabilityITM(S, K, T, sigma, optionType);
             
-            // Update current position Greeks
+            // Update current position Greeks with color coding
             document.getElementById('currentDelta').textContent = greeks.delta.toFixed(3);
             document.getElementById('currentGamma').textContent = greeks.gamma.toFixed(4);
             document.getElementById('currentTheta').textContent = greeks.theta.toFixed(3);
@@ -936,27 +1095,58 @@
             document.getElementById('currentIV').textContent = (sigma * 100).toFixed(1) + '%';
             document.getElementById('currentGreeks').style.display = 'grid';
             
-            // Update probability
-            document.getElementById('probITM').textContent = probITM.toFixed(1) + '%';
-            document.getElementById('probITM').className = probITM > 50 ? 'stat-value negative' : 'stat-value positive';
+            // Color code theta (negative is bad for long options)
+            document.getElementById('currentTheta').style.color = greeks.theta < -0.01 ? '#ff4757' : '#00d4aa';
             
-            // Update live IV
+            // Update probability with better color coding
+            document.getElementById('probITM').textContent = probITM.toFixed(1) + '%';
+            if (optionType === 'put') {
+                // For puts, high ITM probability is bad (stock going down)
+                document.getElementById('probITM').className = probITM > 60 ? 'stat-value negative' : 
+                    probITM > 40 ? 'stat-value neutral' : 'stat-value positive';
+            } else {
+                // For calls, high ITM probability is good (stock going up)
+                document.getElementById('probITM').className = probITM > 60 ? 'stat-value positive' : 
+                    probITM > 40 ? 'stat-value neutral' : 'stat-value negative';
+            }
+            
+            // Update live IV with volatility environment indication
             document.getElementById('liveIV').textContent = (sigma * 100).toFixed(1) + '%';
+            document.getElementById('liveIV').className = sigma > 0.35 ? 'stat-value positive' : 
+                sigma > 0.20 ? 'stat-value neutral' : 'stat-value negative';
             
             // Calculate for new position if values exist
             const newK = parseFloat(document.getElementById('newStrikePrice').value);
             const newExpDate = document.getElementById('newExpirationDate').value;
+            const newOptionPremium = parseFloat(document.getElementById('newOptionPremium').value) || 0;
+            
             if (newK && newExpDate) {
                 const newExpDateObj = new Date(newExpDate);
                 const newT = Math.max((newExpDateObj - today) / (365 * 24 * 60 * 60 * 1000), 0.001);
-                const newGreeks = calculateGreeks(S, newK, newT, r, sigma, optionType);
+                
+                // Calculate implied vol for new option
+                let newSigma = sigma; // Start with current IV
+                if (newOptionPremium > 0) {
+                    const newImpliedVol = estimateImpliedVolatility(S, newK, newT, r, newOptionPremium, optionType);
+                    if (newImpliedVol > 0.05 && newImpliedVol < 5.0) {
+                        newSigma = newImpliedVol;
+                    }
+                }
+                
+                // Apply skew to new position
+                newSigma = applyVolatilitySkew(newSigma, S, newK, newT, optionType);
+                
+                const newGreeks = calculateGreeks(S, newK, newT, r, newSigma, optionType);
                 
                 document.getElementById('targetDelta').textContent = newGreeks.delta.toFixed(3);
                 document.getElementById('targetGamma').textContent = newGreeks.gamma.toFixed(4);
                 document.getElementById('targetTheta').textContent = newGreeks.theta.toFixed(3);
                 document.getElementById('targetVega').textContent = newGreeks.vega.toFixed(3);
-                document.getElementById('targetIV').textContent = (sigma * 100).toFixed(1) + '%';
+                document.getElementById('targetIV').textContent = (newSigma * 100).toFixed(1) + '%';
                 document.getElementById('targetGreeks').style.display = 'grid';
+                
+                // Color code target theta
+                document.getElementById('targetTheta').style.color = newGreeks.theta < -0.01 ? '#ff4757' : '#00d4aa';
             }
         }
         
@@ -1025,28 +1215,94 @@
                 newMaxLoss = totalPremium;
             }
             
-            // Calculate enhanced ML Score with Greeks
-            let mlScore = 50;
+            // Enhanced ML Score with Realistic Risk Assessment
+            let mlScore = calculateRealisticMLScore({
+                netAfterCommissions,
+                timeGained,
+                daysToExp,
+                newDaysToExp,
+                currentPL,
+                stockPrice,
+                strikePrice,
+                newStrikePrice,
+                optionType,
+                originalPremium,
+                currentOptionPrice,
+                newOptionPremium,
+                probITM: parseFloat(document.getElementById('probITM').textContent || '50')
+            });
             
-            // Factor in roll economics
-            if (netAfterCommissions > 0) mlScore += 20;
-            if (netAfterCommissions > 100) mlScore += 10;
+            // Calculate all position scores
+            const positionScores = calculatePositionScores({
+                netAfterCommissions,
+                timeGained,
+                daysToExp,
+                newDaysToExp,
+                currentPL,
+                stockPrice,
+                strikePrice,
+                newStrikePrice,
+                optionType,
+                originalPremium,
+                currentOptionPrice,
+                newOptionPremium,
+                probITM: parseFloat(document.getElementById('probITM').textContent || '50')
+            });
             
-            // Factor in time value
-            if (timeGained > 20) mlScore += 15;
-            if (timeGained > 30) mlScore += 5;
+            // Update position scores display
+            document.getElementById('rollScore').textContent = `${positionScores.rollScore}%`;
+            document.getElementById('rollScore').className = `stat-value ${positionScores.rollScore > 60 ? 'positive' : positionScores.rollScore > 40 ? 'neutral' : 'negative'}`;
             
-            // Factor in Greeks comparison (if available)
-            const currentTheta = parseFloat(document.getElementById('currentTheta').textContent || '0');
-            const targetTheta = parseFloat(document.getElementById('targetTheta').textContent || '0');
-            if (Math.abs(targetTheta) < Math.abs(currentTheta)) mlScore += 10;
+            document.getElementById('holdScore').textContent = `${positionScores.holdScore}%`;
+            document.getElementById('holdScore').className = `stat-value ${positionScores.holdScore > 60 ? 'positive' : positionScores.holdScore > 40 ? 'neutral' : 'negative'}`;
             
-            // Factor in probability
-            const probITM = parseFloat(document.getElementById('probITM').textContent || '50');
-            if (probITM < 30) mlScore += 15;
-            if (probITM < 20) mlScore += 10;
+            document.getElementById('closeScore').textContent = `${positionScores.closeScore}%`;
+            document.getElementById('closeScore').className = `stat-value ${positionScores.closeScore > 60 ? 'positive' : positionScores.closeScore > 40 ? 'neutral' : 'negative'}`;
             
-            mlScore = Math.min(95, Math.max(5, mlScore));
+            document.getElementById('bestAction').textContent = positionScores.bestAction;
+            document.getElementById('bestAction').className = `stat-value ${positionScores.bestAction === 'CLOSE' ? 'negative' : positionScores.bestAction === 'ROLL' ? 'positive' : 'neutral'}`;
+            
+            // Calculate and update risk metrics
+            const riskMetrics = calculateRiskMetrics({
+                currentPL,
+                originalPremium,
+                positionSize,
+                portfolioValue: parseFloat(document.getElementById('portfolioValue').value) || 50000,
+                maxRiskPercent: parseFloat(document.getElementById('maxRiskPercent').value) || 2.0,
+                profitTarget: parseFloat(document.getElementById('profitTarget').value) || 25,
+                stopLoss: parseFloat(document.getElementById('stopLoss').value) || 50
+            });
+            
+            // Update risk displays
+            document.getElementById('positionRisk').textContent = `${Math.abs(riskMetrics.positionRiskPercent).toFixed(1)}%`;
+            document.getElementById('positionRisk').className = `stat-value ${Math.abs(riskMetrics.positionRiskPercent) > 30 ? 'negative' : Math.abs(riskMetrics.positionRiskPercent) > 15 ? 'neutral' : 'positive'}`;
+            
+            document.getElementById('portfolioImpact').textContent = `${riskMetrics.portfolioImpactPercent >= 0 ? '+' : ''}${riskMetrics.portfolioImpactPercent.toFixed(2)}%`;
+            document.getElementById('portfolioImpact').className = `stat-value ${riskMetrics.portfolioImpactPercent >= 0 ? 'positive' : 'negative'}`;
+            
+            document.getElementById('plVsTarget').textContent = riskMetrics.plVsTargetStatus;
+            document.getElementById('plVsTarget').className = `stat-value ${riskMetrics.plVsTargetStatus === 'TARGET HIT' ? 'positive' : riskMetrics.plVsTargetStatus === 'STOP LOSS' ? 'negative' : 'neutral'}`;
+            
+            document.getElementById('riskLevel').textContent = riskMetrics.riskLevel;
+            document.getElementById('riskLevel').className = `stat-value ${riskMetrics.riskLevel === 'LOW' ? 'positive' : riskMetrics.riskLevel === 'MEDIUM' ? 'neutral' : 'negative'}`;
+            
+            // Use roll score for decision recommendation
+            mlScore = positionScores.rollScore;
+            
+            // Get decision recommendation
+            const decisionData = getDecisionRecommendation(mlScore, {
+                netAfterCommissions,
+                timeGained,
+                daysToExp,
+                currentPL,
+                probITM: parseFloat(document.getElementById('probITM').textContent || '50'),
+                rollType: getRollType(strikePrice, newStrikePrice, optionType),
+                positionSize,
+                stockPrice,
+                newBreakEven,
+                bestAction: positionScores.bestAction,
+                allScores: positionScores.scores
+            });
             
             // Update quick stats
             document.getElementById('currentPL').textContent = currentPL >= 0 ? `+$${currentPL.toFixed(2)}` : `-$${Math.abs(currentPL).toFixed(2)}`;
@@ -1074,22 +1330,10 @@
             document.getElementById('timeValueGained').textContent = `${timeGained} days`;
             document.getElementById('timeValueGained').className = timeGained > 0 ? 'stat-value positive' : 'stat-value negative';
             
-            // Enhanced decision logic with probability
-            let recommendation, confidence, alternative;
-            
-            if (mlScore > 70) {
-                recommendation = "✅ STRONG ROLL - HIGH PROBABILITY";
-                confidence = `ML Confidence: ${mlScore}% | Prob Success: ${(100 - probITM).toFixed(1)}%`;
-                alternative = "Execute roll with confidence - all factors favorable";
-            } else if (mlScore > 50) {
-                recommendation = "📊 MODERATE ROLL - PROCEED WITH CAUTION";
-                confidence = `ML Confidence: ${mlScore}% | Prob Success: ${(100 - probITM).toFixed(1)}%`;
-                alternative = "Consider market conditions and personal risk tolerance";
-            } else {
-                recommendation = "⚠️ WEAK ROLL - RECONSIDER";
-                confidence = `ML Confidence: ${mlScore}% | Prob Success: ${(100 - probITM).toFixed(1)}%`;
-                alternative = "Consider closing position or waiting for better conditions";
-            }
+            // Use enhanced decision data
+            const recommendation = decisionData.recommendation;
+            const confidence = decisionData.confidence;
+            const alternative = decisionData.alternative;
             
             document.getElementById('recommendation').textContent = recommendation;
             document.getElementById('confidence').textContent = confidence;
@@ -1125,6 +1369,281 @@
         document.getElementById('fmpKey').addEventListener('change', function() {
             apiKeys.fmp = this.value;
         });
+        
+        // Enhanced ML Scoring Functions
+        function calculateRealisticMLScore(params) {
+            let score = 30; // Start conservative
+            const {
+                netAfterCommissions, timeGained, daysToExp, newDaysToExp,
+                currentPL, stockPrice, strikePrice, newStrikePrice, optionType,
+                originalPremium, currentOptionPrice, newOptionPremium, probITM
+            } = params;
+            
+            // 1. Economics Factor (30% weight)
+            if (netAfterCommissions > 0) {
+                score += Math.min(15, netAfterCommissions / 50); // Max 15 points
+            } else {
+                score -= Math.abs(netAfterCommissions) / 25; // Penalty for cost
+            }
+            
+            // 2. Time Decay Factor (20% weight)
+            if (daysToExp < 21) {
+                score -= 15; // High penalty for rolling close to expiration
+            } else if (daysToExp < 45) {
+                score -= 8;
+            }
+            
+            if (timeGained > 30) {
+                score += 12;
+            } else if (timeGained > 0) {
+                score += timeGained * 0.3;
+            } else {
+                score -= 10; // Penalty for no time gained
+            }
+            
+            // 3. Probability Factor (25% weight)
+            const rollType = getRollType(strikePrice, newStrikePrice, optionType);
+            if (rollType.includes('Out')) {
+                // Rolling out in time
+                if (probITM > 70) score -= 15;
+                else if (probITM > 50) score -= 8;
+                else if (probITM < 30) score += 10;
+            } else if (rollType.includes('Down') && optionType === 'put') {
+                // Rolling down puts (more aggressive)
+                if (probITM > 60) score -= 12;
+                else score += 5;
+            } else if (rollType.includes('Up') && optionType === 'call') {
+                // Rolling up calls (more aggressive)
+                if (probITM > 60) score -= 12;
+                else score += 5;
+            }
+            
+            // 4. P&L Factor (15% weight)
+            const plPercent = (currentPL / (originalPremium * 100)) * 100;
+            if (plPercent > 50) {
+                score += 10; // Already profitable, good time to roll
+            } else if (plPercent < -50) {
+                score -= 8; // Deep loss, rolling might not help
+            }
+            
+            // 5. Volatility Environment (10% weight)
+            const currentIV = parseFloat(document.getElementById('currentIV').textContent || '25');
+            if (currentIV > 30) {
+                score += 5; // High IV good for selling options
+            } else if (currentIV < 15) {
+                score -= 5; // Low IV not ideal for rolling
+            }
+            
+            // Cap the score realistically
+            return Math.min(85, Math.max(5, Math.round(score)));
+        }
+        
+        function getRollType(currentStrike, newStrike, optionType) {
+            const strikeMove = newStrike - currentStrike;
+            let type = [];
+            
+            if (Math.abs(strikeMove) < 0.01) {
+                type.push('Out'); // Just rolling time
+            } else if (strikeMove > 0) {
+                type.push(optionType === 'call' ? 'Up' : 'Down');
+            } else {
+                type.push(optionType === 'call' ? 'Down' : 'Up');
+            }
+            
+            return type.join(' and ');
+        }
+        
+        function getDecisionRecommendation(mlScore, params) {
+            const {
+                netAfterCommissions, timeGained, daysToExp, currentPL,
+                probITM, rollType, positionSize, stockPrice, newBreakEven,
+                bestAction, allScores
+            } = params;
+            
+            let recommendation, confidence, alternative;
+            const riskLevel = calculateRiskLevel(params);
+            
+            // Base decision on best overall action, not just roll score
+            if (bestAction === 'ROLL') {
+                if (mlScore >= 70) {
+                    recommendation = "✅ STRONG ROLL RECOMMENDED";
+                    confidence = `Best Action: ROLL (${mlScore}%) | Risk: ${riskLevel}`;
+                    alternative = `Roll provides best outcome across all factors`;
+                } else if (mlScore >= 55) {
+                    recommendation = "📊 MODERATE ROLL - BEST OPTION";
+                    confidence = `Best Action: ROLL (${mlScore}%) | Risk: ${riskLevel}`;
+                    alternative = `Roll slightly favored over hold (${allScores.HOLD}%) and close (${allScores.CLOSE}%)`;
+                } else {
+                    recommendation = "⚠️ WEAK ROLL - BEST OF LIMITED OPTIONS";
+                    confidence = `Best Action: ROLL (${mlScore}%) | Risk: ${riskLevel}`;
+                    alternative = `Consider waiting for better market conditions`;
+                }
+            } else if (bestAction === 'HOLD') {
+                recommendation = "🤚 HOLD POSITION - BEST STRATEGY";
+                confidence = `Best Action: HOLD (${allScores.HOLD}%) | Risk: ${riskLevel}`;
+                alternative = `Hold outscores roll (${mlScore}%) and close (${allScores.CLOSE}%)`;
+            } else { // CLOSE
+                recommendation = "❌ CLOSE POSITION - RECOMMENDED";
+                confidence = `Best Action: CLOSE (${allScores.CLOSE}%) | Risk: ${riskLevel}`;
+                alternative = `Close outscores roll (${mlScore}%) and hold (${allScores.HOLD}%)`;
+            }
+            
+            return { recommendation, confidence, alternative };
+        }
+        
+        function calculateRiskLevel(params) {
+            const { daysToExp, probITM, netAfterCommissions } = params;
+            let riskPoints = 0;
+            
+            if (daysToExp < 21) riskPoints += 3;
+            else if (daysToExp < 45) riskPoints += 1;
+            
+            if (probITM > 70) riskPoints += 2;
+            else if (probITM > 50) riskPoints += 1;
+            
+            if (netAfterCommissions < -100) riskPoints += 2;
+            else if (netAfterCommissions < 0) riskPoints += 1;
+            
+            if (riskPoints >= 4) return 'HIGH';
+            else if (riskPoints >= 2) return 'MEDIUM';
+            else return 'LOW';
+        }
+        
+        function getAlternativeActions(params) {
+            const { daysToExp, currentPL, probITM, netAfterCommissions } = params;
+            let actions = [];
+            
+            if (daysToExp < 21) {
+                actions.push('Close position before expiration');
+            }
+            
+            if (currentPL > 0) {
+                actions.push('Take profits and close');
+            }
+            
+            if (probITM > 70) {
+                actions.push('Wait for better conditions');
+            }
+            
+            if (netAfterCommissions < -50) {
+                actions.push('Consider different strike/expiration');
+            }
+            
+            if (actions.length === 0) {
+                actions.push('Hold position and monitor');
+            }
+            
+            return actions[0]; // Return primary alternative
+        }
+        
+        function calculatePositionScores(params) {
+            const {
+                netAfterCommissions, timeGained, daysToExp, currentPL,
+                probITM, stockPrice, strikePrice, optionType, originalPremium
+            } = params;
+            
+            // Calculate ROLL score (already implemented)
+            const rollScore = calculateRealisticMLScore(params);
+            
+            // Calculate HOLD score
+            let holdScore = 50;
+            
+            // Time decay penalty for holding
+            if (daysToExp < 14) holdScore -= 25;
+            else if (daysToExp < 30) holdScore -= 15;
+            else if (daysToExp < 60) holdScore -= 5;
+            
+            // Profitability boost for holding
+            const plPercent = (currentPL / (originalPremium * 100)) * 100;
+            if (plPercent > 30) holdScore += 15;
+            else if (plPercent > 10) holdScore += 8;
+            else if (plPercent < -30) holdScore -= 15;
+            
+            // Probability factor for holding
+            if (probITM < 25) holdScore += 10;
+            else if (probITM > 75) holdScore -= 20;
+            
+            holdScore = Math.min(85, Math.max(5, Math.round(holdScore)));
+            
+            // Calculate CLOSE score
+            let closeScore = 50;
+            
+            // Profitability factor for closing
+            if (plPercent > 50) closeScore += 20;
+            else if (plPercent > 25) closeScore += 15;
+            else if (plPercent > 0) closeScore += 8;
+            else if (plPercent < -50) closeScore += 10; // Cut losses
+            
+            // Time factor for closing
+            if (daysToExp < 7) closeScore += 20;
+            else if (daysToExp < 14) closeScore += 10;
+            
+            // Risk factor for closing
+            if (probITM > 80) closeScore += 15;
+            
+            closeScore = Math.min(85, Math.max(5, Math.round(closeScore)));
+            
+            // Determine best action
+            const scores = { ROLL: rollScore, HOLD: holdScore, CLOSE: closeScore };
+            const bestAction = Object.keys(scores).reduce((a, b) => scores[a] > scores[b] ? a : b);
+            
+            return {
+                rollScore,
+                holdScore,
+                closeScore,
+                bestAction,
+                scores
+            };
+        }
+        
+        function calculateRiskMetrics(params) {
+            const {
+                currentPL, originalPremium, positionSize, portfolioValue,
+                maxRiskPercent, profitTarget, stopLoss
+            } = params;
+            
+            // Calculate position risk as percentage of premium
+            const totalInvested = originalPremium * positionSize * 100;
+            const currentValue = totalInvested + currentPL;
+            const positionRiskPercent = ((totalInvested - currentValue) / totalInvested) * 100;
+            
+            // Calculate portfolio impact
+            const portfolioImpactPercent = (currentPL / portfolioValue) * 100;
+            
+            // Calculate P/L vs targets
+            const profitTargetDollar = totalInvested * (profitTarget / 100);
+            const stopLossDollar = totalInvested * -(stopLoss / 100);
+            
+            let plVsTargetStatus;
+            if (currentPL >= profitTargetDollar) {
+                plVsTargetStatus = "TARGET HIT";
+            } else if (currentPL <= stopLossDollar) {
+                plVsTargetStatus = "STOP LOSS";
+            } else {
+                const progressToTarget = (currentPL / profitTargetDollar) * 100;
+                plVsTargetStatus = `${progressToTarget.toFixed(0)}%`;
+            }
+            
+            // Calculate overall risk level
+            let riskLevel = "LOW";
+            if (Math.abs(portfolioImpactPercent) > maxRiskPercent || 
+                positionRiskPercent > stopLoss ||
+                currentPL <= stopLossDollar) {
+                riskLevel = "HIGH";
+            } else if (Math.abs(portfolioImpactPercent) > (maxRiskPercent * 0.5) || 
+                       positionRiskPercent > (stopLoss * 0.5)) {
+                riskLevel = "MEDIUM";
+            }
+            
+            return {
+                positionRiskPercent,
+                portfolioImpactPercent,
+                plVsTargetStatus,
+                riskLevel,
+                profitTargetDollar,
+                stopLossDollar
+            };
+        }
         
         // Add listeners for Twelve and Alpha keys if you add input fields for them
         
